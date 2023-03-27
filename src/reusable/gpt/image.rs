@@ -23,7 +23,6 @@ impl From<tokio::task::JoinError> for MyErr {
         MyErr::Custom(format!("failed on joining task with code:\n {value:?}"))
     }
 }
-
 async fn download(url:String)->Result<Vec<u8>,MyErr>{
     Ok(reqwest::get(url).await?.bytes().await?.to_vec())
 }
