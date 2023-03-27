@@ -1,0 +1,11 @@
+{
+  "discord":{
+    "token":"your discord token",
+    "err_channel":1031774270512169070,
+    "err_image":"https://media.discordapp.net/attachments/1068440173479739393/1089451702886871111/0ae.png",
+    "author":455622761168109569
+  },
+  "gpt":{
+    "token":"your gpt token"
+  }
+}
