@@ -12,16 +12,18 @@ async fn slash(bnd:&SlashBundle<'_>)->Result<(),MyErr>{
     }
     match name{
         "chat"=> chat(bnd).await?,
+        "image"=> image(bnd).await?,
         _=>{return Err(MyErr::Custom("we dont have that command".to_owned()))}
     }
     Ok(())
 }
 
+
 #[hertz::button(0,false)]
 async fn button(bnd:&ComponentBundle<'_>)->Result<(),MyErr>{
     let id = get_id(bnd);
     Components::response_adv(bnd, modal_response(&id)).await?;
-    let msg = bnd.cmd.message.await_modal_interaction(bnd.ctx).timeout(std::time::Duration::new(10*60,0));
+    let msg = bnd.cmd.message.await_modal_interaction(bnd.ctx).timeout(std::time::Duration::new(60,0));
     let mut confirm = true;
     while let Some(x) = msg.next().await {
         let z = ModalBundle{cmd:&x,ctx:bnd.ctx()};
@@ -35,7 +37,7 @@ async fn button(bnd:&ComponentBundle<'_>)->Result<(),MyErr>{
     Ok(())
 }
 async fn modal(bnd:&ModalBundle<'_>)->Result<(),MyErr>{
-    bnd.cmd.defer(&bnd.ctx.http).await?;
+    Components::response(bnd, "wait for few second or minutes", true).await?;
     let mut ask = String::new();
     for comp in &bnd.cmd.data.components{
         let arow = comp.components.first().unwrap();
@@ -71,6 +73,32 @@ async fn chat(bnd:&SlashBundle<'_>)->Result<(),MyErr>{
     }
     Ok(())
 }
+
+async fn image(bnd:&SlashBundle<'_>)->Result<(),MyErr>{
+    let mut prompt = "".to_owned();
+    let mut size = "".to_owned();
+    let mut n = 1;
+    for x in Components::sub_options(bnd)?{
+        match &x.value{
+            CommandDataOptionValue::String(y)=>{
+                if x.name == "size"{
+                    size = y.to_owned()
+                }else{
+                    prompt = y.to_owned()
+                }
+            }
+            CommandDataOptionValue::Integer(y)=>{
+                n = *y as u8;
+            }
+            _ =>{continue;}
+        }
+    }
+    let gpt = Gpt::new()?;
+    let img = gpt.get_image(prompt, n, size).await?;
+    img.send(bnd).await?;
+    Ok(())
+}
+
 fn get_id<T:Mybundle>(bnd:&T)->String{
     let name = bnd.name();
     name.split("-").nth(1).unwrap().to_string()

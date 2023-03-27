@@ -99,14 +99,14 @@ impl CompModel{
     pub fn embed<T:Mybundle>(&self,bnd:&T)->Vec<CreateEmbed>{
         let user = bnd.user();
         let rply = &self.comp.choices[0].message.content;
-        let mut x = vec![rply.as_str()];
+        let mut x = vec![rply.to_owned()];
         if rply.len() > 1000{
-            x = rply.split("\n\n").collect::<Vec<_>>();
+            x = pretty_format(rply);
         }
         let mut y = vec![CreateEmbed::new().title("Chat Gpt Prompt").color(Color::GOLD)
             .author(CreateEmbedAuthor::new(&user.name).icon_url(user.face()))
             .field("Question", &self.data.messages.last().unwrap().content, false)
-            .field("Answer", x[0], false)];
+            .field("Answer", &x[0], false)];
         if x.len() > 1 {
             for z in x[1..].to_vec(){
                 y.push(CreateEmbed::new().color(Color::GOLD).description(z))
@@ -115,7 +115,23 @@ impl CompModel{
         y
     }
 }
-
+fn pretty_format<'a>(data:&str)->Vec<String>{
+    let x = data.split("```").collect::<Vec<_>>();
+    if x.len() == 1{
+        return x[0].split("\n\n").map(|x|x.to_owned()).collect();
+    }
+    let mut y = vec![];
+    let mut splited = true;
+    for i in x{
+        if splited{
+            y.append(&mut i.split("\n\n").map(|x|x.to_owned()).collect::<Vec<_>>());
+        }else {
+            y.push(format!("```{i}```"))
+        }
+        splited = !splited;
+    }
+    y.iter().filter(|&x|x != "").map(|y|y.to_owned()).collect::<Vec<_>>()
+}
 impl Gpt{
     async fn comp(&self,data:&CompletitionData)->Result<Completition,MyErr>{
         let url = "https://api.openai.com/v1/chat/completions";
@@ -147,6 +163,7 @@ mod testing{
     use super::*;
 
     #[tokio::test]
+    #[ignore = "tested"]
     async fn chat_gpt() {
         let gpt = Gpt::new().unwrap();
         let ask = gpt.completition("what is rust programing language?").await.unwrap();

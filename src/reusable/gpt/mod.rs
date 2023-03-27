@@ -1,4 +1,5 @@
 pub mod chat;
+pub mod image;
 
 use reqwest::header::HeaderMap;
 use super::MyErr;
