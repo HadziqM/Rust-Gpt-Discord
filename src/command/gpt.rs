@@ -21,11 +21,21 @@ async fn slash(bnd:&SlashBundle<'_>)->Result<(),MyErr>{
 async fn button(bnd:&ComponentBundle<'_>)->Result<(),MyErr>{
     let id = get_id(bnd);
     Components::response_adv(bnd, modal_response(&id)).await?;
+    let msg = bnd.cmd.message.await_modal_interaction(bnd.ctx).timeout(std::time::Duration::new(10*60,0));
+    let mut confirm = true;
+    while let Some(x) = msg.next().await {
+        let z = ModalBundle{cmd:&x,ctx:bnd.ctx()};
+        modal(&z).await?;
+        confirm = false;
+        break;
+    }
+    bnd.cmd.message.clone().edit(&bnd.ctx.http, EditMessage::new()
+        .components(vec![])).await?;
+    CompModel::delete(&id, confirm).await;
     Ok(())
 }
-
-#[hertz::modal(0,true)]
 async fn modal(bnd:&ModalBundle<'_>)->Result<(),MyErr>{
+    bnd.cmd.defer(&bnd.ctx.http).await?;
     let mut ask = String::new();
     for comp in &bnd.cmd.data.components{
         let arow = comp.components.first().unwrap();
@@ -38,7 +48,7 @@ async fn modal(bnd:&ModalBundle<'_>)->Result<(),MyErr>{
         let gpt_s = Gpt::new()?;
         let data = CompModel::retieve(&id).await?;
         let resp = gpt_s.reply_comp(&data, &ask).await?;
-        resp.send(bnd, &id).await?;
+        resp.modal_send(bnd, &id).await?;
         Ok(())
     }else {
         Err(MyErr::Custom("no question asked".to_owned()))

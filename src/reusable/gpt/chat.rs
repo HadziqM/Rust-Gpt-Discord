@@ -1,6 +1,6 @@
 use super::{MyErr,Gpt};
 use serde::{Serialize,Deserialize};
-use crate::{Mybundle,Components};
+use crate::{Mybundle,Components, reusable::serenity_new::ModalBundle};
 use serenity::all::*;
 
 #[derive(Serialize,Deserialize,Clone)]
@@ -40,7 +40,13 @@ impl Message{
     }
 }
 impl CompModel{
-    async fn cached(&self,id:&str){
+    pub async fn delete(id:&str,confirm:bool){
+        if confirm{
+            let mut chat = crate::CHAT.lock().await;
+            chat.remove(id);
+        }
+    }
+    pub async fn cached(&self,id:&str){
         let mut chat = crate::CHAT.lock().await;
         match chat.get_mut(id){
             Some(x)=>{
@@ -62,12 +68,51 @@ impl CompModel{
             }
         }
     }
-    pub async fn send<T:Mybundle>(&self,bnd:&T,id:&str)->Result<(),MyErr>{
+    pub fn button(id:&str)->Vec<CreateActionRow>{
         let button = Components::normal_button("Reply", &format!("chat-{}",id), ButtonStyle::Primary, "🤨");
-        Components::edit_adv(bnd, EditInteractionResponse::new()
-            .components(vec![CreateActionRow::Buttons(vec![button])]).content(&self.comp.choices[0].message.content)).await?;
+        vec![CreateActionRow::Buttons(vec![button])]
+    }
+    pub async fn send<T:Mybundle>(&self,bnd:&T,id:&str)->Result<(),MyErr>{
+        let embed = self.embed(bnd);
+        if embed.len() > 10{
+            Components::edit_adv(bnd, EditInteractionResponse::new()
+                .components(Self::button(id)).embeds(embed[..9].to_vec())).await?;
+        }else {
+            Components::edit_adv(bnd, EditInteractionResponse::new()
+                .components(Self::button(id)).embeds(embed)).await?;
+        }
         self.cached(id).await;
         Ok(())
+    }
+    pub async fn modal_send(&self,bnd:&ModalBundle<'_>,id:&str)->Result<(),MyErr>{
+        let embed = self.embed(bnd);
+        if embed.len() > 10{
+            bnd.cmd.create_followup(&bnd.ctx.http, CreateInteractionResponseFollowup::new()
+                .add_embeds(embed[..9].to_vec()).components(CompModel::button(&id))).await?;
+        }else {
+            bnd.cmd.create_followup(&bnd.ctx.http, CreateInteractionResponseFollowup::new()
+                .add_embeds(embed).components(CompModel::button(&id))).await?;
+        }
+        self.cached(id).await;
+        Ok(())
+    }
+    pub fn embed<T:Mybundle>(&self,bnd:&T)->Vec<CreateEmbed>{
+        let user = bnd.user();
+        let rply = &self.comp.choices[0].message.content;
+        let mut x = vec![rply.as_str()];
+        if rply.len() > 1000{
+            x = rply.split("\n\n").collect::<Vec<_>>();
+        }
+        let mut y = vec![CreateEmbed::new().title("Chat Gpt Prompt").color(Color::GOLD)
+            .author(CreateEmbedAuthor::new(&user.name).icon_url(user.face()))
+            .field("Question", &self.data.messages.last().unwrap().content, false)
+            .field("Answer", x[0], false)];
+        if x.len() > 1 {
+            for z in x[1..].to_vec(){
+                y.push(CreateEmbed::new().color(Color::GOLD).description(z))
+            }
+        }
+        y
     }
 }
 
