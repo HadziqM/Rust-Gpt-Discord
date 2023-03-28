@@ -25,6 +25,7 @@ async fn button(bnd:&ComponentBundle<'_>)->Result<(),MyErr>{
     Components::response_adv(bnd, modal_response(&id)).await?;
     let msg = bnd.cmd.message.await_modal_interaction(bnd.ctx);
     while let Some(x) = msg.next().await {
+        println!("got one modal");
         let z = ModalBundle{cmd:&x,ctx:bnd.ctx()};
         modal(&z).await?;
         break;
@@ -57,6 +58,7 @@ async fn modal(bnd:&ModalBundle<'_>)->Result<(),MyErr>{
 async fn chat(bnd:&SlashBundle<'_>)->Result<(),MyErr>{
     let gpt_struct = Gpt::new()?;
     let mut name = "";
+    let id = bnd.cmd.id.to_string();
     for i in Components::sub_options(bnd)?{
         if let CommandDataOptionValue::String(x) = &i.value{
             name = x;
@@ -66,7 +68,7 @@ async fn chat(bnd:&SlashBundle<'_>)->Result<(),MyErr>{
         return Err(MyErr::Custom("idk".to_owned()));
     }else{
         let resp = gpt_struct.completition(name).await?;
-        resp.send(bnd, &bnd.cmd.id.to_string()).await?;
+        resp.send(bnd, &id).await?;
     }
     Ok(())
 }

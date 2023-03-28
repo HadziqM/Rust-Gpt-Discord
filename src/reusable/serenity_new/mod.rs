@@ -16,14 +16,17 @@ impl MyTime {
     }
 }
 
+#[derive(Clone)]
 pub struct SlashBundle<'a>{
     pub cmd:&'a CommandInteraction,
     pub ctx:&'a Context
 }
+#[derive(Clone)]
 pub struct ComponentBundle<'a>{
     pub cmd:&'a ComponentInteraction,
     pub ctx:&'a Context,
 }
+#[derive(Clone)]
 pub struct ModalBundle<'a>{
     pub cmd:&'a ModalInteraction,
     pub ctx:&'a Context,
@@ -38,6 +41,7 @@ pub trait Mybundle {
     fn name(&self)->String;
     async fn cd_check(&self,cd:i64)->Result<(),MyErr>;
     async fn cooldown(&self,cd:i64);
+    fn clonen(&self)->Self;
 }
 
 
@@ -89,6 +93,9 @@ impl Mybundle for SlashBundle<'_>{
             }
         }
     }
+    fn clonen(&self)->Self{
+        self.clone()
+    }
 }
 #[async_trait]
 impl Mybundle for ComponentBundle<'_>{
@@ -138,6 +145,10 @@ impl Mybundle for ComponentBundle<'_>{
             }
         }
     }
+    fn clonen(&self)->Self{
+        self.clone()
+    }
+
 }
 #[async_trait]
 impl Mybundle for ModalBundle<'_>{
@@ -186,5 +197,8 @@ impl Mybundle for ModalBundle<'_>{
                 cd.insert(pat.to_owned(), now+time);
             }
         }
+    }
+    fn clonen(&self)->Self{
+        self.clone()
     }
 }

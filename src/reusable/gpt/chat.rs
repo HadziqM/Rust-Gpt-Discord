@@ -1,7 +1,9 @@
+use std::path::{PathBuf, Path};
+
 use super::{MyErr,Gpt};
 use serde::{Serialize,Deserialize};
-use crate::{Mybundle,Components, reusable::serenity_new::ModalBundle};
-use serenity::all::*;
+use crate::{Mybundle,Components, reusable::{serenity_new::{ModalBundle, ComponentBundle}, Mytrait}};
+use serenity::all::{*, Message as SerenityMessage};
 
 #[derive(Serialize,Deserialize,Clone)]
 pub struct Choiches{
@@ -16,15 +18,40 @@ pub struct Message{
 pub struct Completition{
     pub choices:Vec<Choiches>
 }
-#[derive(Serialize,Clone)]
+#[derive(Serialize,Deserialize,Clone)]
 pub struct CompletitionData{
     model:String,
     pub messages:Vec<Message>
 }
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub struct CompModel{
     pub data:CompletitionData,
     pub comp:Completition
+}
+#[derive(Serialize,Deserialize)]
+pub struct Preserve{
+    id:String,
+    comp:CompModel
+}
+impl Preserve {
+    fn path()->PathBuf{
+        Path::new(".").join("CACHED")
+    }
+    pub async fn save()->Result<(),MyErr>{
+        let data = crate::CHAT.lock().await;
+        let preserve = data.iter().map(|(id,comp)|Self{id:id.to_owned(),comp:comp.clone()}).collect::<Vec<_>>();
+        let file = serde_json::to_string(&preserve)?;
+        Ok(tokio::fs::write(Self::path(), file.as_bytes()).await?)
+    }
+    pub async fn load()->Result<(),MyErr>{
+        if Self::path().exists(){
+            let mut data = crate::CHAT.lock().await;
+            let file = tokio::fs::read(Self::path()).await?;
+            *data = serde_json::from_slice::<Vec<Self>>(&file)?
+                .iter().map(|x|(x.id.to_owned(),x.comp.clone())).collect();
+        }
+        Ok(())
+    }
 }
 impl CompletitionData{
     fn new(messages:Vec<Message>)->Self{
@@ -39,12 +66,15 @@ impl Message{
         Message { content:content.to_owned(), role: "assistant".to_owned() }
     }
 }
+
 impl CompModel{
-    pub async fn delete(id:&str,confirm:bool){
+    pub async fn delete(id:&str,mut msg:SerenityMessage,ctx:&Context,confirm:bool)->Result<(),MyErr>{
         if confirm{
             let mut chat = crate::CHAT.lock().await;
             chat.remove(id);
+            msg.edit(&ctx.http, EditMessage::new().components(vec![])).await?;
         }
+        Ok(())
     }
     pub async fn cached(&self,id:&str){
         let mut chat = crate::CHAT.lock().await;
@@ -68,6 +98,18 @@ impl CompModel{
             }
         }
     }
+    pub async fn timeout(id:&str,ctx:&Context,msg:SerenityMessage)->Result<(),MyErr>{
+        let stream = ComponentInteractionCollector::new(ctx)
+            .custom_ids(vec![format!("chat-{}",&id)])
+            .timeout(std::time::Duration::from_secs(crate::INIT.gpt.chat_timeout_in_sec));
+        let mut conf = true;
+        while let Some(x) = stream.next().await{
+            conf = false;
+            let _bnd = ComponentBundle{cmd:&x,ctx};
+            break;
+        }
+        Self::delete(id, msg, ctx, conf).await
+    }
     pub fn button(id:&str)->Vec<CreateActionRow>{
         let button = Components::normal_button("Reply", &format!("chat-{}",id), ButtonStyle::Primary, "🤨");
         vec![CreateActionRow::Buttons(vec![button])]
@@ -82,18 +124,30 @@ impl CompModel{
                 .components(Self::button(id)).embeds(embed)).await?;
         }
         self.cached(id).await;
+        let new_id = id.to_owned();
+        let new_ctx = bnd.ctx().clone();
+        let msg = bnd.cmd().get_msg(bnd.ctx()).await?;
+        tokio::spawn(async move{
+            let _=Self::timeout(&new_id, &new_ctx, msg).await;
+        });
         Ok(())
     }
     pub async fn modal_send(&self,bnd:&ModalBundle<'_>,id:&str)->Result<(),MyErr>{
         let embed = self.embed(bnd);
+        let msg;
         if embed.len() > 10{
-            bnd.cmd.create_followup(&bnd.ctx.http, CreateInteractionResponseFollowup::new()
+            msg = bnd.cmd.create_followup(&bnd.ctx.http, CreateInteractionResponseFollowup::new()
                 .add_embeds(embed[..9].to_vec()).components(CompModel::button(&id))).await?;
         }else {
-            bnd.cmd.create_followup(&bnd.ctx.http, CreateInteractionResponseFollowup::new()
+            msg = bnd.cmd.create_followup(&bnd.ctx.http, CreateInteractionResponseFollowup::new()
                 .add_embeds(embed).components(CompModel::button(&id))).await?;
         }
         self.cached(id).await;
+        let new_id = id.to_owned();
+        let new_ctx = bnd.ctx().clone();
+        tokio::spawn(async move{
+            let _=Self::timeout(&new_id, &new_ctx, msg).await;
+        });
         Ok(())
     }
     pub fn embed<T:Mybundle>(&self,bnd:&T)->Vec<CreateEmbed>{

@@ -6,6 +6,7 @@
     "author":455622761168109569
   },
   "gpt":{
-    "token":"your gpt token"
+    "token":"your gpt token",
+    "chat_timeout_in_sec":600
   }
 }

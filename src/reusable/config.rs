@@ -19,7 +19,8 @@ pub struct Discord{
 }
 #[derive(Deserialize)]
 pub struct GptConf{
-    pub token:String
+    pub token:String,
+    pub chat_timeout_in_sec:u64
 }
 
 impl Init {
