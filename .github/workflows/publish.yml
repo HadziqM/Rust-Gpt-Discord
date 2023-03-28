@@ -46,7 +46,7 @@ jobs:
 
       - name: upload linux-artifact
         uses: actions/upload-artifact@v3
-        if: matrix.platform == 'ubuntu-20.04'
+        if: matrix.platform == 'ubuntu-22.04'
         with:
           name: linux-artifact
           path: |
