@@ -23,8 +23,7 @@ async fn slash(bnd:&SlashBundle<'_>)->Result<(),MyErr>{
 async fn button(bnd:&ComponentBundle<'_>)->Result<(),MyErr>{
     let id = get_id(bnd);
     Components::response_adv(bnd, modal_response(&id)).await?;
-    let msg = bnd.cmd.message.await_modal_interaction(bnd.ctx).timeout(std::time::Duration::new(60,0));
-    let mut confirm = true;
+    let msg = bnd.cmd.message.await_modal_interaction(bnd.ctx);
     while let Some(x) = msg.next().await {
         let z = ModalBundle{cmd:&x,ctx:bnd.ctx()};
         modal(&z).await?;
@@ -33,7 +32,6 @@ async fn button(bnd:&ComponentBundle<'_>)->Result<(),MyErr>{
     }
     bnd.cmd.message.clone().edit(&bnd.ctx.http, EditMessage::new()
         .components(vec![])).await?;
-    CompModel::delete(&id, confirm).await;
     Ok(())
 }
 async fn modal(bnd:&ModalBundle<'_>)->Result<(),MyErr>{
