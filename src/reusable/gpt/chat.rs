@@ -124,12 +124,14 @@ impl CompModel{
                 .components(Self::button(id)).embeds(embed)).await?;
         }
         self.cached(id).await;
-        let new_id = id.to_owned();
-        let new_ctx = bnd.ctx().clone();
-        let msg = bnd.cmd().get_msg(bnd.ctx()).await?;
-        tokio::spawn(async move{
-            let _=Self::timeout(&new_id, &new_ctx, msg).await;
-        });
+        if crate::INIT.gpt.chat_timeout_in_sec != 0{
+            let new_id = id.to_owned();
+            let new_ctx = bnd.ctx().clone();
+            let msg = bnd.cmd().get_msg(bnd.ctx()).await?;
+            tokio::spawn(async move{
+                let _=Self::timeout(&new_id, &new_ctx, msg).await;
+            });
+        }
         Ok(())
     }
     pub async fn modal_send(&self,bnd:&ModalBundle<'_>,id:&str)->Result<(),MyErr>{
@@ -143,11 +145,13 @@ impl CompModel{
                 .add_embeds(embed).components(CompModel::button(&id))).await?;
         }
         self.cached(id).await;
-        let new_id = id.to_owned();
-        let new_ctx = bnd.ctx().clone();
-        tokio::spawn(async move{
-            let _=Self::timeout(&new_id, &new_ctx, msg).await;
-        });
+        if crate::INIT.gpt.chat_timeout_in_sec != 0{
+            let new_id = id.to_owned();
+            let new_ctx = bnd.ctx().clone();
+            tokio::spawn(async move{
+                let _=Self::timeout(&new_id, &new_ctx, msg).await;
+            });
+        }
         Ok(())
     }
     pub fn embed<T:Mybundle>(&self,bnd:&T)->Vec<CreateEmbed>{
