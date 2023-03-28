@@ -27,7 +27,6 @@ async fn button(bnd:&ComponentBundle<'_>)->Result<(),MyErr>{
     while let Some(x) = msg.next().await {
         let z = ModalBundle{cmd:&x,ctx:bnd.ctx()};
         modal(&z).await?;
-        confirm = false;
         break;
     }
     bnd.cmd.message.clone().edit(&bnd.ctx.http, EditMessage::new()
